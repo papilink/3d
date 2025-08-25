@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Papiweb - Image to 3D Converter</title>
+    <base href="./">
+    <meta name="description" content="Convierte imágenes 2D en modelos 3D usando inteligencia artificial">
+
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@latest/dist/tf-backend-webgl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.8/dist/tf-tflite.min.js"></script>
+
+    <!-- Import Map for three.js -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <style>
+        :root {
+            --primary-color: #0A1929;
+            --secondary-color: #132F4C;
+            --accent-color: #2196f3;
+            --success-color: #28a745;
+            --text-light: #ffffff;
+            --text-dark: #E7EBF0;
+            --background-dark: #0A1929;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --gradient-bg: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: var(--background-dark);
+            color: var(--text-light);
+            min-height: 100vh;
+        }
+        header {
+            background-color: rgba(19, 47, 76, 0.4);
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid rgba(231, 235, 240, 0.1);
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        header h1 {
+            margin: 0;
+            font-size: 2rem;
+            color: var(--text-light);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+        }
+        main {
+            padding: 2rem;
+            max-width: 1000px;
+            margin: auto;
+        }
+        #controls-card {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(231, 235, 240, 0.1);
+            margin-bottom: 2rem;
+        }
+        #controls-card p {
+            margin-top: 0;
+        }
+        #generate-btn, #download-btn {
+            color: var(--text-light);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        #generate-btn {
+            background-color: var(--accent-color);
+        }
+
+        #download-btn {
+            background-color: var(--success-color);
+            margin-left: 1rem;
+        }
+
+        #generate-btn:hover, #download-btn:hover {
+            transform: translateY(-2px);
+            filter: brightness(110%);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        #generate-btn:hover {
+            box-shadow: 0 6px 20px rgba(33, 150, 243, 0.4);
+        }
+
+        #download-btn:hover {
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+        }
+
+        #output-card {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(231, 235, 240, 0.1);
+            text-align: center;
+        }
+        
+        #loading-indicator {
+            padding: 2rem;
+            font-size: 1.2rem;
+            color: var(--text-light);
+            background: rgba(19, 47, 76, 0.4);
+            border-radius: 12px;
+            margin: 1rem 0;
+        }
+        
+        #renderer-canvas {
+            background-color: rgba(19, 47, 76, 0.2);
+            border-radius: 16px;
+            border: 1px solid rgba(231, 235, 240, 0.1);
+        }
+        
+        label {
+            color: var(--text-light);
+            font-weight: 500;
+        }
+        
+        h2 {
+            color: var(--text-light);
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid var(--accent-color);
+            display: inline-block;
+            padding-bottom: 0.5rem;
+        }
+        
+        input[type="file"] {
+            background: rgba(19, 47, 76, 0.4);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 2px dashed var(--accent-color);
+            width: 100%;
+            box-sizing: border-box;
+            margin: 1rem 0;
+            color: var(--text-light);
+            cursor: pointer;
+        }
+        
+        p {
+            color: var(--text-light);
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Papiweb desarrollos informáticos</h1>
+    </header>
+    <main>
+        <div id="controls-card">
+            <h2>1. Configure & Upload</h2>
+            <p>Select an image and choose your generation settings.</p>
+            <div>
+                <label for="image-upload">Image File:</label>
+                <input type="file" id="image-upload" accept="image/jpeg, image/png">
+            </div>
+            <div style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                <div class="control-group">
+                    <label for="depth-scale">Profundidad:</label>
+                    <input type="range" id="depth-scale" min="10" max="200" value="100" step="10">
+                    <span id="depth-value">100%</span>
+                </div>
+                
+                <div class="control-group">
+                    <label for="base-height">Altura de la Base:</label>
+                    <input type="range" id="base-height" min="0" max="100" value="0" step="5">
+                    <span id="base-value">0%</span>
+                </div>
+
+                <div class="control-group">
+                    <input type="checkbox" id="auto-center" name="auto-center" checked>
+                    <label for="auto-center">Centrar Automáticamente</label>
+                </div>
+
+                <div class="control-group">
+                    <input type="checkbox" id="use-normal-map" name="use-normal-map" checked>
+                    <label for="use-normal-map">Texturas Avanzadas</label>
+                </div>
+            </div>
+        </div>
+
+        <style>
+            .control-group {
+                margin: 1rem 0;
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+            }
+
+            input[type="range"] {
+                flex: 1;
+                height: 6px;
+                background: var(--secondary-color);
+                border-radius: 3px;
+                -webkit-appearance: none;
+            }
+
+            input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                width: 18px;
+                height: 18px;
+                background: var(--accent-color);
+                border-radius: 50%;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            input[type="range"]::-webkit-slider-thumb:hover {
+                transform: scale(1.1);
+                background: var(--primary-color);
+            }
+
+            .control-group span {
+                min-width: 3.5em;
+                color: var(--text-light);
+            }
+        </style>
+
+        <div id="output-card">
+            <h2>2. Generate & View</h2>
+            <button id="generate-btn">🔄 Generate 3D Model</button>
+            <button id="download-btn" style="display:none;">
+                <span>📥</span>
+                <span>Download GLB Model</span>
+            </button>
+            <div id="loading-indicator" style="display:none;">
+                <p>⚙️ Generating model, this may take a minute...</p>
+            </div>
+            <canvas id="renderer-canvas" style="display:none; width: 100%; height: 500px;"></canvas>
+        </div>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+</body>
+</html>
