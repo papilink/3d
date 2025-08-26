@@ -179,20 +179,59 @@ async function estimateDepth(imgElement) {
 async function createMeshFromDepthMap(depthMapTensor, textureImage) {
     const depthMap = await depthMapTensor.array();
     const [height, width] = depthMapTensor.shape;
-    const extrusionScale = 100.0;
+    
+    // Obtener valores de configuración
+    const depthScale = document.getElementById('depth-scale').value / 100;
+    const baseHeight = document.getElementById('base-height').value / 100;
+    const useNormalMap = document.getElementById('use-normal-map').checked;
+    const autoCenter = document.getElementById('auto-center').checked;
+    
+    // Calcular escala de extrusión
+    const extrusionScale = 100.0 * depthScale;
+    
+    // Crear geometría con base opcional
     const geometry = new THREE.PlaneGeometry(width, height, width - 1, height - 1);
     const positionAttribute = geometry.getAttribute('position');
+    
+    // Aplicar mapa de profundidad y base
     for (let i = 0; i < positionAttribute.count; i++) {
         const y = Math.floor(i / width);
         const depth = depthMap[y][i % width];
-        positionAttribute.setZ(i, (1.0 - depth) * extrusionScale);
+        const z = (1.0 - depth) * extrusionScale + (baseHeight * 20); // Base height
+        positionAttribute.setZ(i, z);
     }
+    
+    // Computar normales para mejor iluminación
     geometry.computeVertexNormals();
+    
+    // Crear textura y material
     const texture = new THREE.Texture(textureImage);
     texture.needsUpdate = true;
-    const material = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
+    
+    const materialParams = {
+        map: texture,
+        side: THREE.DoubleSide
+    };
+    
+    // Agregar normal map si está activado
+    if (useNormalMap) {
+        const normalStrength = 0.5;
+        materialParams.normalMap = texture;
+        materialParams.normalScale = new THREE.Vector2(normalStrength, normalStrength);
+    }
+    
+    const material = new THREE.MeshStandardMaterial(materialParams);
+    
+    // Crear mesh
     const mesh = new THREE.Mesh(geometry, material);
     mesh.rotation.x = -Math.PI / 2;
+    
+    // Centrar automáticamente si está activado
+    if (autoCenter) {
+        geometry.center();
+        mesh.position.set(0, 0, 0);
+    }
+    
     return mesh;
 }
 
@@ -353,8 +392,69 @@ async function downloadGLB() {
     }
 }
 
+// Función para actualizar la geometría del mesh
+async function updateMeshGeometry() {
+    if (!currentMesh || !imagePreview.complete) return;
+    
+    try {
+        const depthMapTensor = await estimateDepth(imagePreview);
+        if (depthMapTensor) {
+            scene.remove(currentMesh);
+            currentMesh.geometry.dispose();
+            currentMesh.material.dispose();
+            
+            currentMesh = await createMeshFromDepthMap(depthMapTensor, imagePreview);
+            const boundingBox = new THREE.Box3().setFromObject(currentMesh);
+            const center = boundingBox.getCenter(new THREE.Vector3());
+            const size = boundingBox.getSize(new THREE.Vector3());
+            
+            controls.target.copy(center);
+            camera.position.z = Math.max(size.x, size.y, size.z) * 1.5;
+            camera.lookAt(center);
+            
+            scene.add(currentMesh);
+            depthMapTensor.dispose();
+        }
+    } catch (error) {
+        console.error('Error al actualizar la geometría:', error);
+    }
+}
+
 // --- Event Listeners ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Configurar controles de ajuste
+    const depthScale = document.getElementById('depth-scale');
+    const depthValue = document.getElementById('depth-value');
+    const baseHeight = document.getElementById('base-height');
+    const baseValue = document.getElementById('base-value');
+    
+    // Actualizar valores mostrados
+    depthScale.addEventListener('input', () => {
+        depthValue.textContent = `${depthScale.value}%`;
+        if (currentMesh) {
+            updateMeshGeometry();
+        }
+    });
+    
+    baseHeight.addEventListener('input', () => {
+        baseValue.textContent = `${baseHeight.value}%`;
+        if (currentMesh) {
+            updateMeshGeometry();
+        }
+    });
+    
+    document.getElementById('auto-center').addEventListener('change', () => {
+        if (currentMesh) {
+            updateMeshGeometry();
+        }
+    });
+    
+    document.getElementById('use-normal-map').addEventListener('change', () => {
+        if (currentMesh) {
+            updateMeshGeometry();
+        }
+    });
+
     // Verificar requisitos del navegador
     if (!window.WebGLRenderingContext) {
         alert('Tu navegador no soporta WebGL, necesario para la visualización 3D.');
