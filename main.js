@@ -74,11 +74,11 @@ async function loadModel() {
     loadingIndicator.style.display = 'block';
     
     try {
-        // Verificar si el modelo principal está disponible
-        const mainModelExists = await checkFileExists(MODELS.default);
-        console.log('Modelo principal disponible:', mainModelExists);
-        
-        if (!mainModelExists) {
+        // Intentar cargar el modelo desde las partes
+        try {
+            MODEL_URL = await loadModelParts();
+        } catch (loadError) {
+            console.error('Error al cargar partes del modelo:', loadError);
             console.log('Cambiando a modelo alternativo...');
             MODEL_URL = MODELS.fallback;
         }
@@ -86,21 +86,41 @@ async function loadModel() {
         // Intentar cargar el modelo seleccionado
         console.log('Iniciando carga del modelo desde:', MODEL_URL);
         
-        // Intentar la carga con timeout
-        const modelLoadPromise = tflite.loadTFLiteModel(MODEL_URL);
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout loading model')), 30000));
+        // Intentar la carga con timeout y reintentos
+        const maxRetries = 3;
+        let lastError = null;
         
-        tfliteModel = await Promise.race([modelLoadPromise, timeoutPromise]);
-        
-        if (tfliteModel) {
-            console.log('Modelo cargado exitosamente:', {
-                modelUrl: MODEL_URL,
-                modelType: MODEL_URL === MODELS.default ? 'Principal' : 'Alternativo'
-            });
-            loadingIndicator.innerText = 'Modelo listo. Puede comenzar a generar.';
-            return true;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const modelLoadPromise = tflite.loadTFLiteModel(MODEL_URL);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error(`Timeout en intento ${attempt}`)), 30000));
+                
+                tfliteModel = await Promise.race([modelLoadPromise, timeoutPromise]);
+                
+                if (tfliteModel) {
+                    console.log('Modelo cargado exitosamente:', {
+                        modelUrl: MODEL_URL,
+                        intento: attempt,
+                        tipo: MODEL_URL === MODELS.default ? 'Principal' : 'Alternativo'
+                    });
+                    loadingIndicator.innerText = 'Modelo listo. Puede comenzar a generar.';
+                    return true;
+                }
+            } catch (error) {
+                lastError = error;
+                console.warn(`Intento ${attempt} fallido:`, error);
+                
+                if (attempt < maxRetries) {
+                    loadingIndicator.innerText = `Reintentando cargar el modelo (${attempt}/${maxRetries})...`;
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Espera exponencial
+                }
+            }
         }
+        
+        // Si llegamos aquí, todos los intentos fallaron
+        throw lastError || new Error('No se pudo cargar el modelo después de varios intentos');
+        
     } catch (e) {
         console.error('Error detallado al cargar el modelo:', {
             message: e.message,
@@ -109,14 +129,19 @@ async function loadModel() {
             browserInfo: navigator.userAgent
         });
         
-        // Si falló con el modelo principal, intentar con el alternativo
-        if (MODEL_URL === MODELS.default) {
-            console.log('Intentando con modelo alternativo...');
-            MODEL_URL = MODELS.fallback;
-            return loadModel(); // Recursión para intentar con el modelo alternativo
+        // Mostrar mensaje de error específico según el tipo de error
+        let errorMessage = 'Error al cargar el modelo. ';
+        if (e.message.includes('Timeout')) {
+            errorMessage += 'La conexión es muy lenta. Intente con una mejor conexión a internet.';
+        } else if (e.message.includes('CORS')) {
+            errorMessage += 'Error de acceso al servidor. Intente más tarde.';
+        } else if (e.message.includes('memory')) {
+            errorMessage += 'No hay suficiente memoria disponible. Cierre otras aplicaciones e intente de nuevo.';
+        } else {
+            errorMessage += 'Por favor, verifique su conexión a internet y recargue la página.';
         }
         
-        alert(`Error al cargar el modelo: ${e.message}. Por favor, verifique su conexión a internet.`);
+        alert(errorMessage);
         loadingIndicator.innerText = 'Error al cargar el modelo. Intente recargar la página.';
         return false;
     }
