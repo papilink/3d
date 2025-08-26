@@ -6,6 +6,18 @@
     <title>Papiweb - Image to 3D Converter</title>
     <base href="./">
     <meta name="description" content="Convierte imágenes 2D en modelos 3D usando inteligencia artificial">
+    <link rel="icon" type="image/png" href="assets/scripts/faviconPapiweb3d.png">
+    
+    <!-- Desactivar logs de TensorFlow -->
+    <script>
+        console.log = (function(old_function) { 
+            return function(text) {
+                if (typeof text !== 'string' || !text.includes('webgl') && !text.includes('kernel')) {
+                    old_function.apply(console, arguments);
+                }
+            }
+        })(console.log);
+    </script>
 
     <!-- TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
@@ -220,6 +232,7 @@
                 background: var(--secondary-color);
                 border-radius: 3px;
                 -webkit-appearance: none;
+                appearance: none;
             }
 
             input[type="range"]::-webkit-slider-thumb {
