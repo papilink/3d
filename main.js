@@ -172,27 +172,92 @@ async function createMeshFromDepthMap(depthMapTensor, textureImage) {
 }
 
 // --- Exporter ---
-function downloadGLB() {
+async function downloadGLB() {
     if (!currentMesh) {
-        alert("No model to download. Please generate a model first.");
+        alert("No hay modelo para descargar. Por favor, genera un modelo primero.");
         return;
     }
-    const exporter = new GLTFExporter();
-    exporter.parse(
-        currentMesh,
-        (result) => {
-            const blob = new Blob([result], { type: 'application/octet-stream' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'model.glb';
-            link.click();
-        },
-        (error) => {
-            console.error('An error happened during GLB export.', error);
-            alert('Failed to export model.');
-        },
-        { binary: true }
-    );
+
+    // Mostrar indicador de progreso
+    loadingIndicator.style.display = 'block';
+    loadingIndicator.innerText = 'Preparando modelo para descarga...';
+    downloadBtn.disabled = true;
+
+    try {
+        const exporter = new GLTFExporter();
+        
+        // Obtener el nombre del archivo original
+        const originalFileName = uploadInput.files[0]?.name || 'image';
+        const baseFileName = originalFileName.split('.')[0];
+        
+        // Crear un nuevo objeto de escena para la exportación
+        const exportScene = new THREE.Scene();
+        
+        // Clonar el mesh actual
+        const meshForExport = currentMesh.clone();
+        
+        // Ajustar la posición y rotación para una mejor vista por defecto
+        meshForExport.position.set(0, 0, 0);
+        exportScene.add(meshForExport);
+        
+        // Configurar opciones de exportación
+        const options = {
+            binary: true,
+            includeCustomExtensions: true,
+            embedImages: true,
+            animations: [],
+            onlyVisible: true,
+            maxTextureSize: 4096,
+            binary: true,
+            forceIndices: true,
+            truncateDrawRange: true,
+            userData: {
+                generatedBy: 'Papiweb 3D Converter',
+                originalImage: originalFileName,
+                createdAt: new Date().toISOString(),
+                version: '1.0'
+            }
+        };
+
+        // Exportar usando Promise
+        const result = await new Promise((resolve, reject) => {
+            exporter.parse(
+                exportScene,
+                (gltf) => resolve(gltf),
+                (error) => reject(error),
+                options
+            );
+        });
+
+        // Crear y descargar el archivo
+        const blob = new Blob([result], { type: 'model/gltf-binary' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${baseFileName}_3d.glb`;
+        
+        // Actualizar indicador
+        loadingIndicator.innerText = 'Descargando modelo...';
+        
+        // Iniciar descarga
+        link.click();
+        
+        // Limpiar
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+            exportScene.remove(meshForExport);
+            meshForExport.geometry.dispose();
+            meshForExport.material.dispose();
+        }, 100);
+
+    } catch (error) {
+        console.error('Error durante la exportación GLB:', error);
+        alert('Error al exportar el modelo. Por favor, intenta de nuevo.');
+    } finally {
+        // Restaurar interfaz
+        loadingIndicator.style.display = 'none';
+        downloadBtn.disabled = false;
+    }
 }
 
 // --- Event Listeners ---

@@ -259,10 +259,29 @@
         <div id="output-card">
             <h2>2. Generate & View</h2>
             <button id="generate-btn">🔄 Generate 3D Model</button>
-            <button id="download-btn" style="display:none;">
-                <span>📥</span>
-                <span>Download GLB Model</span>
+            <button id="download-btn" style="display:none;" class="download-btn">
+                <span class="icon">📥</span>
+                <span class="text">Descargar Modelo 3D</span>
             </button>
+            <style>
+                .download-btn {
+                    position: relative;
+                    overflow: hidden;
+                }
+                .download-btn:disabled {
+                    opacity: 0.7;
+                    cursor: not-allowed;
+                }
+                .download-btn .icon {
+                    transition: transform 0.3s ease;
+                }
+                .download-btn:hover:not(:disabled) .icon {
+                    transform: translateY(2px);
+                }
+                .download-btn:active:not(:disabled) .icon {
+                    transform: translateY(4px);
+                }
+            </style>
             <div id="loading-indicator" style="display:none;">
                 <p>⚙️ Generating model, this may take a minute...</p>
             </div>
