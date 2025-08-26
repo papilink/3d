@@ -8,21 +8,52 @@
     <meta name="description" content="Convierte imágenes 2D en modelos 3D usando inteligencia artificial">
     <link rel="icon" type="image/png" href="assets/scripts/faviconPapiweb3d.png">
     
-    <!-- Desactivar logs de TensorFlow -->
+    <!-- Configuración y optimización de TensorFlow -->
     <script>
-        console.log = (function(old_function) { 
-            return function(text) {
-                if (typeof text !== 'string' || !text.includes('webgl') && !text.includes('kernel')) {
-                    old_function.apply(console, arguments);
+        // Configurar manejo de logs
+        const debugMode = false;
+        if (!debugMode) {
+            // Filtrar mensajes de registro no esenciales
+            const originalConsoleLog = console.log;
+            const originalConsoleWarn = console.warn;
+            console.log = function() {
+                if (typeof arguments[0] === 'string') {
+                    if (!arguments[0].includes('webgl') && 
+                        !arguments[0].includes('kernel') && 
+                        !arguments[0].includes('backend')) {
+                        originalConsoleLog.apply(console, arguments);
+                    }
+                } else {
+                    originalConsoleLog.apply(console, arguments);
                 }
-            }
-        })(console.log);
+            };
+            console.warn = function() {
+                if (typeof arguments[0] === 'string') {
+                    if (!arguments[0].includes('webgl') && 
+                        !arguments[0].includes('kernel')) {
+                        originalConsoleWarn.apply(console, arguments);
+                    }
+                } else {
+                    originalConsoleWarn.apply(console, arguments);
+                }
+            };
+        }
+
+        // Configuración inicial de TensorFlow
+        window.tf_config = {
+            DEBUG: debugMode,
+            WEBGL_VERSION: 2,
+            WEBGL_PACK: true,
+            WEBGL_FORCE_F16_TEXTURES: false,
+            WEBGL_FLUSH_THRESHOLD: 1,
+            KEEP_INTERMEDIATE_TENSORS: false
+        };
     </script>
 
     <!-- TensorFlow.js -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@latest/dist/tf-backend-webgl.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.8/dist/tf-tflite.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.16.0/dist/tf-backend-webgl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite@0.0.1-alpha.9/dist/tf-tflite.min.js"></script>
 
     <!-- Import Map for three.js -->
     <script type="importmap">
