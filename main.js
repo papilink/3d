@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { loadModelParts } from './assets/scripts/modelLoader.js';
 
 // --- Constants and Globals ---
 const MODELS = {
-    default: './assets/models/model_opt.tflite',
+    default: await loadModelParts(), // Cargar el modelo desde las partes
     fallback: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite'
 };
 let MODEL_URL = MODELS.default;
