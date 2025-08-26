@@ -197,33 +197,76 @@ async function createMeshFromDepthMap(depthMapTensor, textureImage) {
 }
 
 // --- Exporter ---
-async function downloadGLB() {
-    if (!currentMesh) {
-        alert("No hay modelo para descargar. Por favor, genera un modelo primero.");
-        return;
+// Función para validar el modelo antes de exportar
+function validateModelForExport(mesh) {
+    if (!mesh.geometry) {
+        throw new Error('El modelo no tiene geometría válida');
     }
+    
+    const geometry = mesh.geometry;
+    if (!geometry.attributes.position || geometry.attributes.position.count === 0) {
+        throw new Error('El modelo no tiene vértices válidos');
+    }
+    
+    if (!mesh.material || !mesh.material.map) {
+        throw new Error('El modelo no tiene textura válida');
+    }
+    
+    return true;
+}
 
-    // Mostrar indicador de progreso
-    loadingIndicator.style.display = 'block';
-    loadingIndicator.innerText = 'Preparando modelo para descarga...';
-    downloadBtn.disabled = true;
+// Función para optimizar el modelo para exportación
+function optimizeModelForExport(mesh) {
+    const optimizedMesh = mesh.clone();
+    
+    // Centrar el modelo en el origen
+    optimizedMesh.geometry.center();
+    
+    // Asegurarse de que las normales estén actualizadas
+    optimizedMesh.geometry.computeVertexNormals();
+    
+    // Optimizar la geometría
+    optimizedMesh.geometry.computeBoundingBox();
+    optimizedMesh.geometry.computeBoundingSphere();
+    
+    return optimizedMesh;
+}
 
+async function downloadGLB() {
     try {
-        const exporter = new GLTFExporter();
+        if (!currentMesh) {
+            throw new Error("No hay modelo para descargar. Por favor, genera un modelo primero.");
+        }
+
+        // Validar el modelo
+        validateModelForExport(currentMesh);
+
+        // Mostrar indicador de progreso
+        loadingIndicator.style.display = 'block';
+        loadingIndicator.innerText = 'Preparando modelo para descarga...';
+        downloadBtn.disabled = true;
+
+        // Optimizar el modelo para exportación
+        const meshForExport = optimizeModelForExport(currentMesh);
         
         // Obtener el nombre del archivo original
         const originalFileName = uploadInput.files[0]?.name || 'image';
         const baseFileName = originalFileName.split('.')[0];
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         
         // Crear un nuevo objeto de escena para la exportación
         const exportScene = new THREE.Scene();
         
-        // Clonar el mesh actual
-        const meshForExport = currentMesh.clone();
-        
         // Ajustar la posición y rotación para una mejor vista por defecto
         meshForExport.position.set(0, 0, 0);
+        meshForExport.rotation.set(-Math.PI / 2, 0, 0); // Orientación estándar para GLB
         exportScene.add(meshForExport);
+        
+        // Agregar luces a la escena de exportación
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 7.5);
+        exportScene.add(ambientLight, directionalLight);
         
         // Configurar opciones de exportación
         const options = {
@@ -233,19 +276,28 @@ async function downloadGLB() {
             animations: [],
             onlyVisible: true,
             maxTextureSize: 4096,
-            binary: true,
             forceIndices: true,
             truncateDrawRange: true,
             userData: {
                 generatedBy: 'Papiweb 3D Converter',
                 originalImage: originalFileName,
-                createdAt: new Date().toISOString(),
-                version: '1.0'
+                createdAt: timestamp,
+                version: '1.0',
+                metadata: {
+                    vertices: meshForExport.geometry.attributes.position.count,
+                    faces: meshForExport.geometry.index ? meshForExport.geometry.index.count / 3 : 0,
+                    textureResolution: meshForExport.material.map.image ? 
+                        `${meshForExport.material.map.image.width}x${meshForExport.material.map.image.height}` : 'N/A'
+                }
             }
         };
 
+        // Actualizar progreso
+        loadingIndicator.innerText = 'Exportando modelo...';
+
         // Exportar usando Promise
         const result = await new Promise((resolve, reject) => {
+            const exporter = new GLTFExporter();
             exporter.parse(
                 exportScene,
                 (gltf) => resolve(gltf),
@@ -254,30 +306,46 @@ async function downloadGLB() {
             );
         });
 
-        // Crear y descargar el archivo
+        // Crear y preparar el archivo para descarga
         const blob = new Blob([result], { type: 'model/gltf-binary' });
         const url = URL.createObjectURL(blob);
+        
+        // Crear elemento de descarga con estilo
+        const downloadWrapper = document.createElement('div');
+        downloadWrapper.style.position = 'fixed';
+        downloadWrapper.style.bottom = '20px';
+        downloadWrapper.style.right = '20px';
+        downloadWrapper.style.padding = '15px';
+        downloadWrapper.style.background = 'rgba(33, 150, 243, 0.9)';
+        downloadWrapper.style.borderRadius = '8px';
+        downloadWrapper.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+        downloadWrapper.style.color = 'white';
+        downloadWrapper.style.zIndex = '1000';
+        downloadWrapper.innerHTML = '⬇️ Descarga iniciada...';
+        
+        document.body.appendChild(downloadWrapper);
+
+        // Iniciar descarga
         const link = document.createElement('a');
         link.href = url;
-        link.download = `${baseFileName}_3d.glb`;
-        
-        // Actualizar indicador
-        loadingIndicator.innerText = 'Descargando modelo...';
-        
-        // Iniciar descarga
+        link.download = `${baseFileName}_3d_${timestamp}.glb`;
         link.click();
         
-        // Limpiar
+        // Mostrar mensaje de éxito
+        loadingIndicator.innerText = 'Modelo exportado con éxito';
+        
+        // Limpiar recursos
         setTimeout(() => {
             URL.revokeObjectURL(url);
-            exportScene.remove(meshForExport);
+            exportScene.remove(meshForExport, ambientLight, directionalLight);
             meshForExport.geometry.dispose();
             meshForExport.material.dispose();
-        }, 100);
+            document.body.removeChild(downloadWrapper);
+        }, 3000);
 
     } catch (error) {
         console.error('Error durante la exportación GLB:', error);
-        alert('Error al exportar el modelo. Por favor, intenta de nuevo.');
+        alert(error.message || 'Error al exportar el modelo. Por favor, intenta de nuevo.');
     } finally {
         // Restaurar interfaz
         loadingIndicator.style.display = 'none';

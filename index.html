@@ -262,24 +262,98 @@
             <button id="download-btn" style="display:none;" class="download-btn">
                 <span class="icon">📥</span>
                 <span class="text">Descargar Modelo 3D</span>
+                <div class="tooltip">Formato GLB compatible con la mayoría de software 3D</div>
             </button>
             <style>
                 .download-btn {
                     position: relative;
-                    overflow: hidden;
+                    overflow: visible;
+                    background: linear-gradient(45deg, #2196f3, #21cbf3);
+                    border: none;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    color: white;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
                 }
+                
                 .download-btn:disabled {
                     opacity: 0.7;
                     cursor: not-allowed;
+                    background: linear-gradient(45deg, #9e9e9e, #bdbdbd);
                 }
+                
                 .download-btn .icon {
                     transition: transform 0.3s ease;
+                    display: inline-block;
+                    margin-right: 8px;
                 }
+                
+                .download-btn:hover:not(:disabled) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+                }
+                
                 .download-btn:hover:not(:disabled) .icon {
                     transform: translateY(2px);
                 }
-                .download-btn:active:not(:disabled) .icon {
-                    transform: translateY(4px);
+                
+                .download-btn:active:not(:disabled) {
+                    transform: translateY(1px);
+                    box-shadow: 0 2px 4px rgba(33, 150, 243, 0.2);
+                }
+                
+                .download-btn .tooltip {
+                    position: absolute;
+                    bottom: 100%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    margin-bottom: 8px;
+                    padding: 8px 12px;
+                    background: rgba(0, 0, 0, 0.8);
+                    color: white;
+                    border-radius: 4px;
+                    font-size: 0.9em;
+                    white-space: nowrap;
+                    opacity: 0;
+                    visibility: hidden;
+                    transition: all 0.3s ease;
+                }
+                
+                .download-btn .tooltip::after {
+                    content: '';
+                    position: absolute;
+                    top: 100%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    border: 6px solid transparent;
+                    border-top-color: rgba(0, 0, 0, 0.8);
+                }
+                
+                .download-btn:hover .tooltip {
+                    opacity: 1;
+                    visibility: visible;
+                    transform: translateX(-50%) translateY(-4px);
+                }
+
+                @keyframes downloading {
+                    0% { background-position: 0% 50%; }
+                    50% { background-position: 100% 50%; }
+                    100% { background-position: 0% 50%; }
+                }
+                
+                .download-btn:disabled {
+                    background-size: 200% 200%;
+                    animation: downloading 2s ease infinite;
+                    background-image: linear-gradient(45deg, 
+                        #2196f3 0%, 
+                        #21cbf3 25%, 
+                        #2196f3 50%, 
+                        #21cbf3 75%, 
+                        #2196f3 100%
+                    );
                 }
             </style>
             <div id="loading-indicator" style="display:none;">
